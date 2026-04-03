@@ -1,0 +1,10 @@
+[package]
+name = "uniswap-mcp-server-rust"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+dotenv = "0.15.0"
+reqwest = { version = "0.12", features = ["json"] }
+serde_json = "1.0.149"
+tokio = { version = "=1.33.0", features = ["macros", "rt-multi-thread"] }
