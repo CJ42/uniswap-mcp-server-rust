@@ -58,6 +58,24 @@ To debug with the official inspector (see RMCP examples):
 npx @modelcontextprotocol/inspector /absolute/path/to/target/debug/uniswap-mcp-server-rust
 ```
 
+## Example to test
+
+Run the commands from the previous section and open the MCP Inspector in your browser.
+
+1. Enter the following values as example
+
+```
+"tokenIn": "0x0000000000000000000000000000000000000000", // ETH
+"tokenOut": "0xdAC17F958D2ee523a2206206994597C13D831ec7", // USDT
+"tokenInChainId": 1,
+"tokenOutChainId": 1,
+"type": "EXACT_INPUT",
+"amount": "1000000000000000000", // 1 ETH in wei
+"swapper": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045", // User's wallet address (vitalik.eth)
+```
+
+2. Click on the "Run Tool" button
+
 ## Learning steps
 
 - [x] MCP server over stdio with RMCP
