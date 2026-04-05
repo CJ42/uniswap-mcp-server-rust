@@ -29,7 +29,7 @@ cargo build --release
 
 - **Transport:** stdio (standard for local MCP: the host spawns this process and speaks JSON-RPC over stdin/stdout).
 - **SDK:** [`rmcp`](https://github.com/modelcontextprotocol/rust-sdk) with `server` + `transport-io`.
-- **Tool:** `uniswap_swap_quote` — calls `POST https://trade-api.gateway.uniswap.org/v1/quote` with your API key and returns the JSON quote (pretty-printed text).
+- **Tool:** `uniswap_swap_quote` — calls `POST https://trade-api.gateway.uniswap.org/v1/quote` with your API key and returns the JSON quote (pretty-printed text). Use **`token_in_preset`** to pick the asset you sell on Ethereum mainnet without typing addresses: `native_eth`, `usdc`, `usdt`, `wbtc`, `dai`, `weth`. If you set a preset, it overrides `token_in`; otherwise pass a full `token_in` address.
 
 Async runtime: **Tokio** (required by RMCP and `reqwest`).
 
