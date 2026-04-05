@@ -12,3 +12,4 @@ cargo run
 
 - [ ] (1) Make a simple server running continuously
 - [ ] (2) Make it I can enter different commands while it is running (`start`, `stop`, `unicorns`)
+- [ ] (3) Try to use functionalities from the [**allow** web3 library for Rust.](https://github.com/alloy-rs)
