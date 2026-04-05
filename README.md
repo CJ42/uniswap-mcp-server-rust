@@ -1,7 +1,14 @@
-# uniswap MCP Server Rust
-Interacting with the Uniswap API in Rust
+# 🦄 Uniswap MCP Server Rust 🦀
 
-## Steps
+Repository to learn how to code in Rust by building a very basic MCP server that interacts with the Uniswap Trade API. To test, clone the repository and run the following **commands**
 
-1) [ ] Make a simple server running continuously
-2) [ ] Make it I can enter different commands while it is running (`start`, `stop`, `unicorns`)
+```bash
+cargo build
+cargo run
+```
+
+
+## Learning steps
+
+- [ ] (1) Make a simple server running continuously
+- [ ] (2) Make it I can enter different commands while it is running (`start`, `stop`, `unicorns`)
