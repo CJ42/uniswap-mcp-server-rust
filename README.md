@@ -2,16 +2,72 @@
 
 ![Cover image](./cover.png)
 
-Repository to learn how to code in Rust by building a very basic MCP server that interacts with the Uniswap Trade API. To test, clone the repository and run the following **commands**
+An MCP (Model Context Protocol) server in Rust that exposes **Uniswap Trade API** quotes as a tool for AI clients. Built with the official Rust SDK **[RMCP](https://github.com/modelcontextprotocol/rust-sdk)** (`rmcp` on crates.io).
+
+## Prerequisites
+
+- Rust toolchain (`cargo`, `rustc`)
+- A Uniswap **Trade API** key as `UNISWAP_API_KEY` (see [Uniswap docs](https://docs.uniswap.org/))
+
+## Configuration
+
+Create a `.env` file next to `Cargo.toml` (or export the variable in your shell):
 
 ```bash
-cargo build
-cargo run
+UNISWAP_API_KEY=your_key_here
 ```
 
+The server loads `.env` at startup using the crate manifest directory, so it works when MCP hosts run the binary from another working directory.
+
+## Build
+
+```bash
+cargo build --release
+```
+
+## How it works
+
+- **Transport:** stdio (standard for local MCP: the host spawns this process and speaks JSON-RPC over stdin/stdout).
+- **SDK:** [`rmcp`](https://github.com/modelcontextprotocol/rust-sdk) with `server` + `transport-io`.
+- **Tool:** `uniswap_swap_quote` — calls `POST https://trade-api.gateway.uniswap.org/v1/quote` with your API key and returns the JSON quote (pretty-printed text).
+
+Async runtime: **Tokio** (required by RMCP and `reqwest`).
+
+## Using with an MCP client
+
+Point your MCP host at the compiled binary. Example for **Cursor** (`.cursor/mcp.json` or global MCP settings):
+
+```json
+{
+  "mcpServers": {
+    "uniswap": {
+      "command": "/absolute/path/to/uniswap-api-rust/target/release/uniswap-mcp-server-rust",
+      "env": {
+        "UNISWAP_API_KEY": "your_key_here"
+      }
+    }
+  }
+}
+```
+
+You can omit `env` if `UNISWAP_API_KEY` is already in the environment.
+
+To debug with the official inspector (see RMCP examples):
+
+```bash
+npx @modelcontextprotocol/inspector /absolute/path/to/target/debug/uniswap-mcp-server-rust
+```
 
 ## Learning steps
 
-- [ ] (1) Make a simple server running continuously
-- [ ] (2) Make it I can enter different commands while it is running (`start`, `stop`, `unicorns`)
-- [ ] (3) Try to use functionalities from the [**allow** web3 library for Rust.](https://github.com/alloy-rs)
+- [x] MCP server over stdio with RMCP
+- [x] Async quote tool via Uniswap Trade API
+- [ ] Make it I can enter different commands while it is running 
+(`start`, `stop`, `unicorns`)
+- [ ] Try to use functionalities from the [**allow** web3 library for 
+Rust.](https://github.com/alloy-rs)
+- [ ] Extend with more tools (e.g. supported chains, token metadata)
+
+## License
+
+See `LICENSE` in the repository.

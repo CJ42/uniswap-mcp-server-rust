@@ -1,5 +1,13 @@
 use std::env;
 
+use rmcp::{
+    ErrorData as McpError, ServerHandler, ServiceExt,
+    handler::server::{router::tool::ToolRouter, wrapper::Parameters},
+    model::{CallToolResult, Content, ServerCapabilities, ServerInfo},
+    schemars, tool, tool_handler, tool_router,
+    transport::stdio,
+};
+
 fn load_dotenv() {
     let env_path = format!("{}/.env", env!("CARGO_MANIFEST_DIR"));
     if dotenv::from_path(&env_path).is_ok() {
@@ -8,62 +16,135 @@ fn load_dotenv() {
     let _ = dotenv::dotenv();
 }
 
-#[tokio::main]
-async fn main() {
-    load_dotenv();
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+struct SwapQuoteArgs {
+    #[schemars(
+        description = "ERC-20 token address to sell (use 0x000…0000 for native ETH on the chain)"
+    )]
+    token_in: String,
+    #[schemars(description = "ERC-20 token address to buy")]
+    token_out: String,
+    #[serde(default = "default_chain_id")]
+    #[schemars(description = "Chain ID for token_in (e.g. 1 for Ethereum mainnet)")]
+    token_in_chain_id: u64,
+    #[serde(default = "default_chain_id")]
+    #[schemars(description = "Chain ID for token_out")]
+    token_out_chain_id: u64,
+    #[serde(default = "default_swap_type")]
+    #[schemars(description = "Quote type, usually EXACT_INPUT")]
+    r#type: String,
+    #[schemars(description = "Input amount in the token's smallest unit (e.g. wei for ETH)")]
+    amount: String,
+    #[schemars(description = "Wallet address that will execute the swap (swapper)")]
+    swapper: String,
+    #[serde(default = "default_slippage")]
+    #[schemars(description = "Max slippage tolerance as a fraction (e.g. 0.5 for 0.5%)")]
+    slippage_tolerance: f64,
+}
 
-    let standard_hello_message = String::from("🦄 Welcome to the Uniswap MCP Server");
-    print_hello_message(&String::from("Jean"));
-    println!("{}", standard_hello_message);
+fn default_chain_id() -> u64 {
+    1
+}
 
-    match get_quote().await {
-        Ok(quote) => println!("Quote: {:?}", quote),
-        Err(e) => println!("Error: {}", e),
+fn default_swap_type() -> String {
+    "EXACT_INPUT".into()
+}
+
+fn default_slippage() -> f64 {
+    0.5
+}
+
+#[derive(Clone)]
+struct UniswapServer {
+    tool_router: ToolRouter<Self>,
+    http: reqwest::Client,
+}
+
+#[tool_router]
+impl UniswapServer {
+    fn new() -> Self {
+        Self {
+            tool_router: Self::tool_router(),
+            http: reqwest::Client::new(),
+        }
+    }
+
+    #[tool(
+        description = "Fetch a swap quote from the Uniswap Trade API (gateway). Requires UNISWAP_API_KEY in the environment or .env file."
+    )]
+    async fn uniswap_swap_quote(
+        &self,
+        Parameters(args): Parameters<SwapQuoteArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        let api_key = env::var("UNISWAP_API_KEY").map_err(|_| {
+            McpError::invalid_params(
+                "UNISWAP_API_KEY is not set; add it to .env or export it before starting the server.",
+                None,
+            )
+        })?;
+
+        let body = serde_json::json!({
+            "tokenIn": args.token_in,
+            "tokenOut": args.token_out,
+            "tokenInChainId": args.token_in_chain_id,
+            "tokenOutChainId": args.token_out_chain_id,
+            "type": args.r#type,
+            "amount": args.amount,
+            "swapper": args.swapper,
+            "slippageTolerance": args.slippage_tolerance,
+        });
+
+        let response = self
+            .http
+            .post("https://trade-api.gateway.uniswap.org/v1/quote")
+            .header("x-api-key", api_key)
+            .header("Content-Type", "application/json")
+            .header("Accept", "application/json")
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| McpError::internal_error(format!("HTTP request failed: {e}"), None))?;
+
+        let status = response.status();
+        let text = response
+            .text()
+            .await
+            .map_err(|e| McpError::internal_error(format!("Failed to read body: {e}"), None))?;
+
+        if !status.is_success() {
+            return Ok(CallToolResult::error(vec![Content::text(format!(
+                "Uniswap API returned {status}: {text}"
+            ))]));
+        }
+
+        let pretty = serde_json::from_str::<serde_json::Value>(&text)
+            .map(|v| serde_json::to_string_pretty(&v).unwrap_or(text.clone()))
+            .unwrap_or(text);
+
+        Ok(CallToolResult::success(vec![Content::text(pretty)]))
     }
 }
 
-fn print_hello_message(username: &String) {
-    println!("Hello {}!", username);
+#[tool_handler]
+impl ServerHandler for UniswapServer {
+    fn get_info(&self) -> ServerInfo {
+        ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
+            .with_instructions(
+                "Tools: uniswap_swap_quote — get a DEX quote from Uniswap's Trade API. Set UNISWAP_API_KEY.".to_string(),
+            )
+    }
 }
 
-// Endpoint to get a quote
-// TODO: this should be called `quote` as it is an endpoint
-async fn get_quote() -> Result<serde_json::Value, String> {
-    let api_key = env::var("UNISWAP_API_KEY").map_err(|_| {
-        "UNISWAP_API_KEY is not set (export it or add it to .env in this crate or the repo root)"
-    })?;
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    load_dotenv();
 
-    let request_url = String::from("https://trade-api.gateway.uniswap.org/v1/quote");
-
-    // Make not blocking so that MCP server can handle multiple requests at once from multiple 👤 users / 🤖 AI agents.
-    let client = reqwest::Client::new();
-
-    // Construct the JSON body as per the example of Uniswap's API docs
-    let json_body = serde_json::json!({
-        "tokenIn": "0x0000000000000000000000000000000000000000", // ETH
-        "tokenOut": "0xdAC17F958D2ee523a2206206994597C13D831ec7", // USDT
-        "tokenInChainId": 1,
-        "tokenOutChainId": 1,
-        "type": "EXACT_INPUT",
-        "amount": "1000000000000000000", // 1 ETH in wei
-        "swapper": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045", // User's wallet address (vitalik.eth)
-        "slippageTolerance": 0.5 // 0.5%
-    });
-
-    let response = client
-        .post(&request_url)
-        .header("x-api-key", api_key)
-        .header("Content-Type", "application/json")
-        .header("Accept", "application/json")
-        .json(&json_body)
-        .send()
+    let service = UniswapServer::new()
+        .serve(stdio())
         .await
-        .map_err(|e| format!("Failed to send: {}", e))?;
+        .inspect_err(|e| eprintln!("MCP server error: {e}"))?;
 
-    let quote_data: serde_json::Value = response
-        .json()
-        .await
-        .map_err(|e| format!("Failed to parse quote response JSON: {}", e))?;
-
-    Ok(quote_data)
+    let quit = service.waiting().await?;
+    eprintln!("Server stopped: {quit:?}");
+    Ok(())
 }
