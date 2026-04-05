@@ -1,6 +1,6 @@
 # 🦄 Uniswap MCP Server Rust 🦀
 
-![Cover image](Cover image)
+![Cover image](./cover.png)
 
 Repository to learn how to code in Rust by building a very basic MCP server that interacts with the Uniswap Trade API. To test, clone the repository and run the following **commands**
 
